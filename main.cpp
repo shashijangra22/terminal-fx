@@ -27,6 +27,8 @@ int main(){
 					break;
 				case 'h':goHome();
 					break;
+				case 10:openFile();
+					break;
 				case ':':toggleMode();
 					break;
 				default:

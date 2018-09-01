@@ -14,6 +14,7 @@
 #include<math.h>
 using namespace std;
 #define clr() printf("\033[H\033[J")
+#define moveCursor(x,y) cout<<"\033["<<x<<";"<<y<<"H"
 
 static struct termios initSettings,newSettings;
 static int peek_char = -1;
@@ -22,7 +23,7 @@ size_t dirSize=1024;
 char currentDir[1024];
 
 std::vector<dirent*> files;
-int i=0,j=i+10,cursor;
+int i=0,j=i+10,cursor=0;
 
 void setRootPath(char const* path){
 	rootPath=path;
@@ -30,14 +31,14 @@ void setRootPath(char const* path){
 
 void printFiles(){
 	clr();
-	printf("at: %s\n",currentDir);
-	// printf("rootPath is : %s\n",rootPath);
+	// printf("at: %s\n",currentDir);
 	for(int x=i; x<j && x<files.size(); x++){
 		printf("%d: %s\n",x,files[x]->d_name);
 	}
-	cursor=min(9,int(files.size()));
+	// cursor=min(10,int(files.size()));
 	printf("\033[1A"); // Move up X lines;
-	// printf("\033[<1>A"); // Move up X lines;
+	fflush(stdout);
+	cursor=9;
 	return;
 }
 void getSetCurrentDir(char const* dir){
@@ -58,7 +59,6 @@ void getSetCurrentDir(char const* dir){
 		// lstat(entry->d_name,&statbuf);
 		// TODO if directory then print colored
 	}
-	// chdir("..");
 	closedir(dp);
 	printFiles();
 	return;
@@ -105,21 +105,29 @@ int readCh(){
 	return ch;
 }
 void moveUp(){
-	// if(cursor>0){
-	// 	printf("\033[<1>A"); // Move up X lines;
-	// 	return;
-	// }
+	if(cursor){
+		cursor--;
+		printf("\033[1A"); // Move up X lines;
+		fflush(stdout);
+		return;
+	}
 	if(i==0) return;
 	i--;
 	j--;
 	printFiles();
+	cursor=0;
+	moveCursor(1,0);
+	// printf("\033[1A"); // Move up X lines;
+	fflush(stdout);
 	return;
 }
 void moveDown(){
-	// if(cursor<9){
-	// 	printf("\033[<1>B"); // Move up X lines;
-	// 	return;
-	// }
+	if(cursor<9){
+		cursor++;
+		printf("\033[1B"); // Move down X lines;
+		fflush(stdout);
+		return;
+	}
 	if(j==files.size()) return;
 	i++;
 	j++;
@@ -128,7 +136,7 @@ void moveDown(){
 }
 void levelUp(){
 	if(strcmp(currentDir,rootPath)==0){
-		printf("at root dir!\n");
+		// printf("at root dir!\n");
 		return;
 	}
 	getSetCurrentDir("../");
@@ -138,7 +146,15 @@ void goHome(){
 	getSetCurrentDir(rootPath);
 	return;
 }
-
+void openFile(){
+	struct stat statbuf;
+	char *fileName=files[cursor+i]->d_name;
+	lstat(fileName,&statbuf);
+	if(S_ISDIR(statbuf.st_mode)){
+		getSetCurrentDir((string(currentDir)+'/'+string(fileName)).c_str());
+	}
+	return;
+}
 void toggleMode(){
 	// printf("\033[XA"); // Move up X lines;
 	// printf("\033[XC"); // Move right X column;
@@ -155,7 +171,7 @@ void toggleMode(){
 			return;
 		}
 		else{
-			cout<<"cmd not supported\n";
+			cout<<"invalid command";
 		}
 		// do commands with s
 	}

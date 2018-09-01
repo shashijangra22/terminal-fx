@@ -9,3 +9,4 @@ void levelUp(void);
 void setRootPath(char const*);
 void goHome(void);
 void toggleMode(void);
+void openFile(void);
