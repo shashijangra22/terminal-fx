@@ -18,7 +18,6 @@ void printDir(char *dir,int depth){
 	while((entry = readdir(dp))!=NULL){
 		lstat(entry->d_name,&statbuf);
 		if(S_ISDIR(statbuf.st_mode)){
-			// found a directory
 			if(strcmp(".",entry->d_name)==0 || strcmp("..",entry->d_name)==0){
 				continue;
 			}

@@ -8,20 +8,26 @@
 using namespace std;
 int main(){
 	clr();
-	char const* path="./";
-	listFiles(path);
+	char path[1024];
+	size_t size=1024;
+	getcwd(path,size);
+	setRootPath(path);
+	getSetCurrentDir(path);
 	initKeyboard();
 	char ch='a';
 	while(ch!='q'){
-		// printf("looping...\n");
-		// sleep(1);
 		if(kbHit()){
 			ch=readCh();
-			// printf("you hit: %c\n",ch);
 			switch(ch){
-				case 65:moveUp(1);
+				case 65:moveUp();
 					break;
-				case 66:moveDown(1);
+				case 66:moveDown();
+					break;
+				case 127:levelUp();
+					break;
+				case 'h':goHome();
+					break;
+				case ':':toggleMode();
 					break;
 				default:
 					break;

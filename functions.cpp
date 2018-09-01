@@ -8,36 +8,59 @@
 #include<string.h>
 #include<vector>
 #include<dirent.h>
+#include<string.h>
 #include<functions.h>
+#include<algorithm>
+#include<math.h>
+using namespace std;
+#define clr() printf("\033[H\033[J")
+
 static struct termios initSettings,newSettings;
 static int peek_char = -1;
-#define clr() printf("\033[H\033[J")
+char const* rootPath;
+size_t dirSize=1024;
+char currentDir[1024];
+
 std::vector<dirent*> files;
-int i=0,j=i+10;
+int i=0,j=i+10,cursor;
+
+void setRootPath(char const* path){
+	rootPath=path;
+}
+
 void printFiles(){
 	clr();
+	printf("at: %s\n",currentDir);
+	// printf("rootPath is : %s\n",rootPath);
 	for(int x=i; x<j && x<files.size(); x++){
 		printf("%d: %s\n",x,files[x]->d_name);
 	}
+	cursor=min(9,int(files.size()));
+	printf("\033[1A"); // Move up X lines;
+	// printf("\033[<1>A"); // Move up X lines;
+	return;
 }
-void listFiles(char const* dir){
+void getSetCurrentDir(char const* dir){
 	DIR* dp;
 	struct dirent* entry;
-	struct stat statbuf;
+	// struct stat statbuf;
 
 	if((dp=opendir(dir))==NULL){
 		fprintf(stderr, "Can't open the Directory!\n");
 		return;
 	}
 	chdir(dir);
+	getcwd(currentDir,dirSize);
+	files.erase(files.begin(),files.end());
+	// chdir(dir);
 	while((entry=readdir(dp))!=NULL){
 		files.push_back(entry);
 		// lstat(entry->d_name,&statbuf);
 		// TODO if directory then print colored
 	}
-	printFiles();
-	chdir("..");
+	// chdir("..");
 	closedir(dp);
+	printFiles();
 	return;
 }
 void initKeyboard(){
@@ -45,13 +68,15 @@ void initKeyboard(){
 	newSettings=initSettings;
 	newSettings.c_lflag &= ~ICANON;
 	newSettings.c_lflag &= ~ECHO;
-	newSettings.c_lflag &= ~ISIG;
+	// newSettings.c_lflag &= ~ISIG;
 	newSettings.c_cc[VMIN]=1;
 	newSettings.c_cc[VTIME]=0;
 	tcsetattr(0,TCSANOW,&newSettings);
+	return;
 }
 void closeKeyboard(){
 	tcsetattr(0,TCSANOW,&initSettings);
+	return;
 }
 int kbHit(){
 	char ch;
@@ -60,7 +85,7 @@ int kbHit(){
 	newSettings.c_cc[VMIN]=0;
 	tcsetattr(0,TCSANOW,&newSettings);	
 	nread=read(0,&ch,1);
-	newSettings.c_cc[VMIN]=0;
+	newSettings.c_cc[VMIN]=1;
 	tcsetattr(0,TCSANOW,&newSettings);
 	if(nread==1){
 		peek_char=ch;
@@ -79,15 +104,59 @@ int readCh(){
 	read(0,&ch,1);
 	return ch;
 }
-void moveUp(int c){
+void moveUp(){
+	// if(cursor>0){
+	// 	printf("\033[<1>A"); // Move up X lines;
+	// 	return;
+	// }
 	if(i==0) return;
 	i--;
 	j--;
 	printFiles();
+	return;
 }
-void moveDown(int c){
+void moveDown(){
+	// if(cursor<9){
+	// 	printf("\033[<1>B"); // Move up X lines;
+	// 	return;
+	// }
 	if(j==files.size()) return;
 	i++;
 	j++;
 	printFiles();
+	return;
+}
+void levelUp(){
+	if(strcmp(currentDir,rootPath)==0){
+		printf("at root dir!\n");
+		return;
+	}
+	getSetCurrentDir("../");
+	return;
+}
+void goHome(){
+	getSetCurrentDir(rootPath);
+	return;
+}
+
+void toggleMode(){
+	// printf("\033[XA"); // Move up X lines;
+	// printf("\033[XC"); // Move right X column;
+	// printf("\033[XD"); // Move left X column
+	closeKeyboard();
+	printf("\033[10B"); // Move down X lines;
+	char input[1024];
+	while(1){
+		printf(">");
+		cin>>input;
+		if(strcmp("exit",input)==0){
+			initKeyboard();
+			printFiles();
+			return;
+		}
+		else{
+			cout<<"cmd not supported\n";
+		}
+		// do commands with s
+	}
 }

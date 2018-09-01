@@ -1,7 +1,11 @@
-void listFiles(char const*);
 void initKeyboard(void);
 void closeKeyboard(void);
+void getSetCurrentDir(char const*);
 int kbHit(void);
 int readCh(void);
-void moveUp(int);
-void moveDown(int);
+void moveUp(void);
+void moveDown(void);
+void levelUp(void);
+void setRootPath(char const*);
+void goHome(void);
+void toggleMode(void);
