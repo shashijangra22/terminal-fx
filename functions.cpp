@@ -138,10 +138,13 @@ void goUp(){
 		// printf("at root dir!\n");
 		return;
 	}
+	backStack.push_back(string(currentDir));
 	getSetCurrentDir("../");
 	return;
 }
 void goHome(){
+	if(strcmp(currentDir,rootPath)==0) return;
+	backStack.push_back(string(currentDir));
 	getSetCurrentDir(rootPath);
 	return;
 }
@@ -170,9 +173,18 @@ void openFile(){
 	char *fileName=files[cursor+firstIndex-1]->d_name;
 	lstat(fileName,&statbuf);
 	if(S_ISDIR(statbuf.st_mode)){
+		if(strcmp(fileName,"..")==0 && strcmp(currentDir,rootPath)==0) return;
+		if(strcmp(fileName,".")==0) return;
 		backStack.push_back(string(currentDir));
 		getSetCurrentDir((string(currentDir)+'/'+string(fileName)).c_str());
 	}
+	// else{
+	// 	pid_t pid=fork();
+	// 	if(pid==0){
+
+	// 	}
+
+	// }
 	return;
 }
 void toggleMode(){
