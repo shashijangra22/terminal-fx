@@ -14,16 +14,19 @@
 #include<math.h>
 using namespace std;
 #define clr() printf("\033[H\033[J")
-#define moveCursor(x,y) cout<<"\033["<<x<<";"<<y<<"H"
-
+void moveCursor(int x,int y) {
+	cout<<"\033["<<x<<";"<<y<<"H";
+	fflush(stdout);
+}
 static struct termios initSettings,newSettings;
 static int peek_char = -1;
 char const* rootPath;
 size_t dirSize=1024;
 char currentDir[1024];
+#define MAX 10
 
 std::vector<dirent*> files;
-int i=0,j=i+10,cursor=0;
+int firstIndex=0,lastIndex=firstIndex+MAX,cursor=1;
 
 void setRootPath(char const* path){
 	rootPath=path;
@@ -32,13 +35,9 @@ void setRootPath(char const* path){
 void printFiles(){
 	clr();
 	// printf("at: %s\n",currentDir);
-	for(int x=i; x<j && x<files.size(); x++){
-		printf("%d: %s\n",x,files[x]->d_name);
+	for(int fileIt=firstIndex; fileIt<lastIndex && fileIt<files.size(); fileIt++){
+		printf("%d: %s\n",fileIt,files[fileIt]->d_name);
 	}
-	// cursor=min(10,int(files.size()));
-	printf("\033[1A"); // Move up X lines;
-	fflush(stdout);
-	cursor=9;
 	return;
 }
 void getSetCurrentDir(char const* dir){
@@ -60,7 +59,10 @@ void getSetCurrentDir(char const* dir){
 		// TODO if directory then print colored
 	}
 	closedir(dp);
+	firstIndex=0;
+	cursor=lastIndex=min(MAX,int(files.size()));
 	printFiles();
+	moveCursor(cursor,0);
 	return;
 }
 void initKeyboard(){
@@ -105,33 +107,29 @@ int readCh(){
 	return ch;
 }
 void moveUp(){
-	if(cursor){
+	if(cursor>1){
 		cursor--;
-		printf("\033[1A"); // Move up X lines;
-		fflush(stdout);
+		moveCursor(cursor,0);
 		return;
 	}
-	if(i==0) return;
-	i--;
-	j--;
+	if(firstIndex==0) return;
+	firstIndex--;
+	lastIndex--;
 	printFiles();
-	cursor=0;
-	moveCursor(1,0);
-	// printf("\033[1A"); // Move up X lines;
-	fflush(stdout);
+	moveCursor(cursor,0);
 	return;
 }
 void moveDown(){
-	if(cursor<9){
+	if(cursor<files.size() && cursor<MAX){
 		cursor++;
-		printf("\033[1B"); // Move down X lines;
-		fflush(stdout);
+		moveCursor(cursor,0);
 		return;
 	}
-	if(j==files.size()) return;
-	i++;
-	j++;
+	if(lastIndex==files.size()) return;
+	firstIndex++;
+	lastIndex++;
 	printFiles();
+	moveCursor(cursor,0);
 	return;
 }
 void levelUp(){
@@ -148,7 +146,7 @@ void goHome(){
 }
 void openFile(){
 	struct stat statbuf;
-	char *fileName=files[cursor+i]->d_name;
+	char *fileName=files[cursor+firstIndex-1]->d_name;
 	lstat(fileName,&statbuf);
 	if(S_ISDIR(statbuf.st_mode)){
 		getSetCurrentDir((string(currentDir)+'/'+string(fileName)).c_str());
