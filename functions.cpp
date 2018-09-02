@@ -24,7 +24,8 @@ char const* rootPath;
 size_t dirSize=1024;
 char currentDir[1024];
 #define MAX 10
-
+std::vector<string> backStack;
+std::vector<string> forwardStack;
 std::vector<dirent*> files;
 int firstIndex=0,lastIndex=firstIndex+MAX,cursor=1;
 
@@ -106,7 +107,7 @@ int readCh(){
 	read(0,&ch,1);
 	return ch;
 }
-void moveUp(){
+void scrollUp(){
 	if(cursor>1){
 		cursor--;
 		moveCursor(cursor,0);
@@ -119,7 +120,7 @@ void moveUp(){
 	moveCursor(cursor,0);
 	return;
 }
-void moveDown(){
+void scrollDown(){
 	if(cursor<files.size() && cursor<MAX){
 		cursor++;
 		moveCursor(cursor,0);
@@ -132,7 +133,7 @@ void moveDown(){
 	moveCursor(cursor,0);
 	return;
 }
-void levelUp(){
+void goUp(){
 	if(strcmp(currentDir,rootPath)==0){
 		// printf("at root dir!\n");
 		return;
@@ -144,19 +145,37 @@ void goHome(){
 	getSetCurrentDir(rootPath);
 	return;
 }
+void goBack(){
+	if(!backStack.size()){
+		return;
+	}
+	string toVisit = backStack.back();
+	backStack.pop_back();
+	forwardStack.push_back(string(currentDir));
+	getSetCurrentDir(toVisit.c_str());
+	return;
+}
+void goForward(){
+	if(!forwardStack.size()){
+		return;
+	}
+	string toVisit = forwardStack.back();
+	forwardStack.pop_back();
+	backStack.push_back(string(currentDir));
+	getSetCurrentDir(toVisit.c_str());
+	return;
+}
 void openFile(){
 	struct stat statbuf;
 	char *fileName=files[cursor+firstIndex-1]->d_name;
 	lstat(fileName,&statbuf);
 	if(S_ISDIR(statbuf.st_mode)){
+		backStack.push_back(string(currentDir));
 		getSetCurrentDir((string(currentDir)+'/'+string(fileName)).c_str());
 	}
 	return;
 }
 void toggleMode(){
-	// printf("\033[XA"); // Move up X lines;
-	// printf("\033[XC"); // Move right X column;
-	// printf("\033[XD"); // Move left X column
 	closeKeyboard();
 	printf("\033[10B"); // Move down X lines;
 	char input[1024];

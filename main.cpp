@@ -19,11 +19,15 @@ int main(){
 		if(kbHit()){
 			ch=readCh();
 			switch(ch){
-				case 65:moveUp();
+				case 65:scrollUp();
 					break;
-				case 66:moveDown();
+				case 66:scrollDown();
 					break;
-				case 127:levelUp();
+				case 127:goUp();
+					break;
+				case 68:goBack();
+					break;
+				case 67:goForward();
 					break;
 				case 'h':goHome();
 					break;
