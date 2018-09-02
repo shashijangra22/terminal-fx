@@ -1,1 +1,0 @@
-void printDir(char*,int);

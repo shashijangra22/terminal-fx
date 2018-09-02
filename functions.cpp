@@ -94,6 +94,7 @@ void getSetCurrentDir(char const* dir){
 		// lstat(entry->d_name,&statbuf);
 		// TODO if directory then print colored
 	}
+	sort(files.begin(),files.end());
 	closedir(dp);
 	firstIndex=0;
 	cursor=lastIndex=min(MAX,int(files.size()));
@@ -269,6 +270,61 @@ void deleteFile(string filePath){
 	}
 	return;
 }
+
+void copyDir(string dir, string dest){
+	DIR *dp;
+	struct dirent *entry;
+	struct stat statbuf;
+
+	if((dp = opendir(dir.c_str()))==NULL){
+		fprintf(stderr, "Can't open the directory: %s\n",dir.c_str());
+		return;
+	}
+	chdir(dir.c_str()); //  i m in a
+	while((entry = readdir(dp))!=NULL){
+		lstat(entry->d_name,&statbuf);
+		if(S_ISDIR(statbuf.st_mode)){
+			if(strcmp(".",entry->d_name)==0 || strcmp("..",entry->d_name)==0){
+				continue;
+			}
+			mkdir((dest+'/'+entry->d_name).c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
+			copyDir(entry->d_name,dest+'/'+entry->d_name);
+		}
+		else{
+			copyFile(entry->d_name,dest);
+		}
+	}
+	chdir("..");
+	closedir(dp);
+}
+
+void delDir(string dir){
+	DIR *dp;
+	struct dirent *entry;
+	struct stat statbuf;
+
+	if((dp = opendir(dir.c_str()))==NULL){
+		fprintf(stderr, "Can't open the directory: %s\n",dir.c_str());
+		return;
+	}
+	chdir(dir.c_str()); //  i m in a
+	while((entry = readdir(dp))!=NULL){
+		lstat(entry->d_name,&statbuf);
+		if(S_ISDIR(statbuf.st_mode)){
+			if(strcmp(".",entry->d_name)==0 || strcmp("..",entry->d_name)==0){
+				continue;
+			}
+			delDir(entry->d_name);
+			rmdir(entry->d_name);
+		}
+		else{
+			unlink(entry->d_name);
+		}
+	}
+	chdir("..");
+	closedir(dp);
+}
+
 void toggleMode(){
 	int modLine=w.ws_row-5;
 	int statusLine=modLine+1;
@@ -287,13 +343,103 @@ void toggleMode(){
 			moveCursor(cursor,0);
 			break;
 		}
+		else if(inputVector[0]=="move_dir"){
+			string src,dest;
+			int size = inputVector.size();
+			for(int i=1; i<size-1; i++){
+				if(inputVector[size-1][0]=='~'){
+					dest=rootPath+inputVector[size-1].substr(1);
+				}
+				else{
+					dest=currentDir+inputVector[size-1];
+				}
+				src=inputVector[i];
+				mkdir((dest+'/'+src).c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
+				copyDir(currentDir+'/'+src,dest+'/'+src);
+				delDir(src);
+				rmdir(src.c_str());	
+			}
+		}
+		else if(inputVector[0]=="delete_dir"){
+			string dest;
+			dest=rootPath+inputVector[1];
+			delDir(dest);
+			rmdir(dest.c_str());
+		}
+		else if(inputVector[0]=="create_file"){
+			string fileName=inputVector[1];
+			string loc;
+			if(inputVector[2][0]=='~'){
+				loc=rootPath+inputVector[2].substr(1);
+			}
+			else{
+				loc=currentDir+'/'+inputVector[2];
+			}
+			open((loc+'/'+fileName).c_str(),O_WRONLY|O_CREAT,S_IRUSR|S_IWUSR);
+		}
+		else if(inputVector[0]=="create_dir"){
+			string fileName=inputVector[1];
+			string loc;
+			if(inputVector[2][0]=='~'){
+				loc=rootPath+inputVector[2].substr(1);
+			}
+			else{
+				loc=currentDir;
+			}
+			mkdir((loc+'/'+fileName).c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
+		}
+		else if(inputVector[0]=="rename"){
+			string a = inputVector[1];
+			string b = inputVector[2];
+			rename(a.c_str(),b.c_str());
+		}
+		else if(inputVector[0]=="move"){
+			string src,dest;
+			int size = inputVector.size();
+			moveCursor(statusLine,0);
+			for(int i=1; i<size-1; i++){
+				if(inputVector[size-1][0]=='~'){
+					dest=rootPath+inputVector[size-1].substr(1);
+				}
+				else{
+					dest=currentDir+'/'+inputVector[size-1];
+				}
+				src=inputVector[i];
+				copyFile(src,dest);
+				deleteFile(currentDir+'/'+src);
+				cout<<"Moved!";
+			}
+		}
+		else if(inputVector[0]=="goto"){
+			if(inputVector[1][0]=='/'){
+				goHome();
+			}
+			else{
+				if(inputVector[1][0]=='~'){
+					getSetCurrentDir((rootPath+inputVector[1].substr(1)).c_str());
+				}
+			}
+			moveCursor(cursor,0);
+				break;
+		}
 		else if(inputVector[0]=="delete_file"){
-			// int size=inputVector.size();
 			string filePath=inputVector[1];
 			deleteFile(rootPath+filePath);
-			moveCursor(statusLine,0);
-			cout<<"Deleted!";
-			moveCursor(inputLine,0);
+		}
+		else if(inputVector[0]=="copy_dir"){
+			string src,dest;
+			int size = inputVector.size();
+			for(int i=1; i<size-1; i++){
+				if(inputVector[size-1][0]=='~'){
+					dest=rootPath+inputVector[size-1].substr(1);
+				}
+				else{
+					dest=currentDir+inputVector[size-1];
+				}
+				src=inputVector[i];
+				mkdir((dest+'/'+src).c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
+				copyDir(currentDir+'/'+src,dest+'/'+src);
+			}
 		}
 		else if(inputVector[0]=="copy"){
 			string src,dest;
