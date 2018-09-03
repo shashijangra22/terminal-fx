@@ -28,6 +28,7 @@ std::vector<string> inputVector;
 std::vector<string> backStack;
 std::vector<string> forwardStack;
 std::vector<dirent*> files;
+std::vector<string> searchStack;
 int firstIndex=0,lastIndex=firstIndex+MAX,cursor=1;
 bool ModeBit=false;
 void moveCursor(int x,int y) {
@@ -37,6 +38,14 @@ void moveCursor(int x,int y) {
 void setRootPath(char const* path){
 	rootPath=path;
 	ioctl(STDOUT_FILENO,TIOCGWINSZ,&w);
+}
+
+void printResults(){
+	clr();
+	int i=1;
+	for(int x=0; x<searchStack.size(); x++){
+		cout<<searchStack[x]<<"\n";
+	}
 }
 
 void printFiles(){
@@ -325,6 +334,38 @@ void delDir(string dir){
 	closedir(dp);
 }
 
+void searchFiles(string fileName,string dir){
+	DIR *dp;
+	struct dirent *entry;
+	struct stat statbuf;
+
+	if((dp = opendir(dir.c_str()))==NULL){
+		fprintf(stderr, "Can't open the directory: %s\n",dir.c_str());
+		return;
+	}
+	chdir(dir.c_str()); //  i m in a
+	while((entry = readdir(dp))!=NULL){
+		lstat(entry->d_name,&statbuf);
+		if(S_ISDIR(statbuf.st_mode)){
+			if(strcmp(".",entry->d_name)==0 || strcmp("..",entry->d_name)==0){
+				continue;
+			}
+			searchFiles(fileName,entry->d_name);
+		}
+		else{
+			if(strcmp(fileName.c_str(),entry->d_name)==0){
+				char buf[1000];
+				getcwd(buf,1000);
+				string toPut = string(buf);
+				int offset=string(rootPath).size();
+				searchStack.push_back(toPut.substr(offset)+'/'+string(entry->d_name));
+			}
+		}
+	}
+	chdir("..");
+	closedir(dp);
+}
+
 void toggleMode(){
 	int modLine=w.ws_row-5;
 	int statusLine=modLine+1;
@@ -340,6 +381,14 @@ void toggleMode(){
 		fillInputVector(input);
 		if(inputVector[0]=="exit"){
 			// printFiles();
+			moveCursor(cursor,0);
+			break;
+		}
+		else if(inputVector[0]=="search"){
+			string fileName=inputVector[1];
+			searchStack.clear();
+			searchFiles(fileName,currentDir);
+			printResults();
 			moveCursor(cursor,0);
 			break;
 		}
