@@ -22,7 +22,7 @@ static int peek_char = -1;
 char const* rootPath;
 size_t dirSize=1024;
 char currentDir[1024];
-#define MAX 20
+#define MAX 10
 struct winsize w;
 std::vector<string> inputVector;
 std::vector<string> backStack;
@@ -30,7 +30,10 @@ std::vector<string> forwardStack;
 std::vector<dirent*> files;
 std::vector<string> searchStack;
 int firstIndex=0,lastIndex=firstIndex+MAX,cursor=1;
-bool ModeBit=false;
+int modLine;
+int outputLine;
+int statusLine;
+int inputLine;
 void moveCursor(int x,int y) {
 	cout<<"\033["<<x<<";"<<y<<"H";
 	fflush(stdout);
@@ -38,6 +41,10 @@ void moveCursor(int x,int y) {
 void setRootPath(char const* path){
 	rootPath=path;
 	ioctl(STDOUT_FILENO,TIOCGWINSZ,&w);
+	modLine=w.ws_row-5;
+	outputLine=modLine+1;
+	statusLine=outputLine+1;
+	inputLine=statusLine+1;
 }
 
 void printResults(){
@@ -50,45 +57,25 @@ void printResults(){
 
 void printFiles(){
 	clr();
-	int i=1;
 	struct stat fileInfo;
 	// printf("at: %s\n",currentDir);
-	for(int fileIt=firstIndex; fileIt<lastIndex && fileIt<files.size(); fileIt++,i++){
+	for(int fileIt=firstIndex; fileIt<lastIndex && fileIt<files.size(); fileIt++){
 		lstat(files[fileIt]->d_name,&fileInfo);
 		if((S_ISDIR(fileInfo.st_mode))){
-			cout<<fileIt<<": "<<"\033[1;31m"<<files[fileIt]->d_name<<"\033[0m";
+			cout<<fileIt+1<<": "<<"\033[1;31m"<<files[fileIt]->d_name<<"\033[0m";
 		}
 		else{
-			cout<<fileIt<<": "<<"\033[1;36m"<<files[fileIt]->d_name<<"\033[0m";
+			cout<<fileIt+1<<": "<<"\033[1;36m"<<files[fileIt]->d_name<<"\033[0m";
 		}
-		moveCursor(i,30);
-		cout<<fileInfo.st_size<<"B";
-		moveCursor(i,40);
-		cout<<(S_ISDIR(fileInfo.st_mode) ? "d" : "-");
-	    cout<<((fileInfo.st_mode & S_IRUSR) ? "r" : "-");
-	    cout<<((fileInfo.st_mode & S_IWUSR) ? "w" : "-");
-	    cout<<((fileInfo.st_mode & S_IXUSR) ? "x" : "-");
-	    cout<<((fileInfo.st_mode & S_IRGRP) ? "r" : "-");
-	    cout<<((fileInfo.st_mode & S_IWGRP) ? "w" : "-");
-	    cout<<((fileInfo.st_mode & S_IXGRP) ? "x" : "-");
-	    cout<<((fileInfo.st_mode & S_IROTH) ? "r" : "-");
-	    cout<<((fileInfo.st_mode & S_IWOTH) ? "w" : "-");
-	    cout<<((fileInfo.st_mode & S_IXOTH) ? "x" : "-");
-	    struct passwd *pw = getpwuid(fileInfo.st_uid);
-		struct group  *gr = getgrgid(fileInfo.st_gid);
-		cout<<" "<<gr->gr_name<<" "<<pw->pw_name<<" ";
-		string time = ctime(&fileInfo.st_mtime);
-		cout<<time.substr(4,12)<<"\n";
+		cout<<"\n";
 	}
-	moveCursor(w.ws_row-5,0);
-	// string appMode=(ModeBit)?"Command Mode":"Normal Mode";
-	printf("Mode: Normal Mode");
+	moveCursor(modLine,0);
+	cout<<"Mode: Normal Mode";
 	return;
 }
 void getSetCurrentDir(char const* dir){
 	DIR* dp;
 	struct dirent* entry;
-	// struct stat statbuf;
 
 	if((dp=opendir(dir))==NULL){
 		fprintf(stderr, "Can't open the Directory!\n");
@@ -97,13 +84,9 @@ void getSetCurrentDir(char const* dir){
 	chdir(dir);
 	getcwd(currentDir,dirSize);
 	files.clear();
-	// chdir(dir);
 	while((entry=readdir(dp))!=NULL){
 		files.push_back(entry);
-		// lstat(entry->d_name,&statbuf);
-		// TODO if directory then print colored
 	}
-	sort(files.begin(),files.end());
 	closedir(dp);
 	firstIndex=0;
 	cursor=lastIndex=min(MAX,int(files.size()));
@@ -116,7 +99,6 @@ void initKeyboard(){
 	newSettings=initSettings;
 	newSettings.c_lflag &= ~ICANON;
 	newSettings.c_lflag &= ~ECHO;
-	// newSettings.c_lflag &= ~ISIG;
 	newSettings.c_cc[VMIN]=1;
 	newSettings.c_cc[VTIME]=0;
 	tcsetattr(0,TCSANOW,&newSettings);
@@ -141,7 +123,6 @@ int kbHit(){
 	}
 	return 0;
 }
-
 int readCh(){
 	char ch;
 	if(peek_char!=-1){
@@ -180,7 +161,6 @@ void scrollDown(){
 }
 void goUp(){
 	if(strcmp(currentDir,rootPath)==0){
-		// printf("at root dir!\n");
 		return;
 	}
 	backStack.push_back(string(currentDir));
@@ -233,11 +213,14 @@ void openFile(){
 	return;
 }
 void clrCMD(){
-	for(int i=0; i<4; i++){
+	moveCursor(modLine,0);
+	for(int i=modLine; i<w.ws_row; i++){
 		for(int j=0; j<w.ws_col; j++){
 			cout<<" ";
 		}
 	}
+	moveCursor(modLine,0);
+	cout<<"Mode: Command Mode";
 }
 
 void fillInputVector(string input){
@@ -260,24 +243,21 @@ void fillInputVector(string input){
 	return;
 }
 
-void copyFile(string src, string dest){
+void copyFile(string fileName, string dest){
 	char block[1024];
 	int in,out;
 	int nread;
-	in = open(src.c_str(),O_RDONLY);
-	out = open((dest+'/'+src).c_str(),O_WRONLY|O_CREAT,S_IRUSR|S_IWUSR);
+	in = open(fileName.c_str(),O_RDONLY);
+	out = open((dest+'/'+fileName).c_str(),O_WRONLY|O_CREAT,S_IRUSR|S_IWUSR);
 	while((nread = read(in,block,sizeof(block)))>0){
 		write(out,block,nread);
 	}
 	return;
 }
 
-void deleteFile(string filePath){
+int deleteFile(string filePath){
 	int x = unlink(filePath.c_str());
-	if(x){
-		cout<<"bakchodi!";
-	}
-	return;
+	return x;
 }
 
 void copyDir(string dir, string dest){
@@ -286,7 +266,7 @@ void copyDir(string dir, string dest){
 	struct stat statbuf;
 
 	if((dp = opendir(dir.c_str()))==NULL){
-		fprintf(stderr, "Can't open the directory: %s\n",dir.c_str());
+		printf("Can't open the directory: %s",dir.c_str());
 		return;
 	}
 	chdir(dir.c_str()); //  i m in a
@@ -305,6 +285,7 @@ void copyDir(string dir, string dest){
 	}
 	chdir("..");
 	closedir(dp);
+	return;
 }
 
 void delDir(string dir){
@@ -367,12 +348,8 @@ void searchFiles(string fileName,string dir){
 }
 
 void toggleMode(){
-	int modLine=w.ws_row-5;
-	int statusLine=modLine+1;
-	int inputLine=statusLine+1;
 	closeKeyboard();
-	moveCursor(modLine,0);
-	printf("Mode: Command Mode\n");
+	clrCMD();
 	string input;
 	while(1){
 		moveCursor(inputLine,0);
@@ -380,84 +357,126 @@ void toggleMode(){
 		getline(cin>>ws,input);
 		fillInputVector(input);
 		if(inputVector[0]=="exit"){
-			// printFiles();
+			getSetCurrentDir(currentDir);
 			moveCursor(cursor,0);
 			break;
 		}
-		else if(inputVector[0]=="search"){
-			string fileName=inputVector[1];
-			searchStack.clear();
-			searchFiles(fileName,currentDir);
-			printResults();
-			moveCursor(cursor,0);
-			break;
-		}
+		// else if(inputVector[0]=="search"){
+		// 	string fileName=inputVector[1];
+		// 	searchStack.clear();
+		// 	searchFiles(fileName,currentDir);
+		// 	printResults();
+		// 	moveCursor(cursor,0);
+		// 	break;
+		// }
 		else if(inputVector[0]=="move_dir"){
 			string src,dest;
 			int size = inputVector.size();
+			if(inputVector[size-1][0]=='~'){
+				dest=rootPath+inputVector[size-1].substr(1);
+			}
+			else if(inputVector[size-1][0]=='/'){
+				dest=currentDir+inputVector[size-1];
+			}
+			else{
+				clrCMD();
+				moveCursor(statusLine,0);
+				cout<<"Invalid Path!";
+				continue;
+			}
 			for(int i=1; i<size-1; i++){
-				if(inputVector[size-1][0]=='~'){
-					dest=rootPath+inputVector[size-1].substr(1);
-				}
-				else{
-					dest=currentDir+inputVector[size-1];
-				}
 				src=inputVector[i];
 				mkdir((dest+'/'+src).c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
 				copyDir(currentDir+'/'+src,dest+'/'+src);
 				delDir(src);
 				rmdir(src.c_str());	
 			}
+			clrCMD();
+			moveCursor(statusLine,0);
+			cout<<"Moved Succesfully!";
 		}
 		else if(inputVector[0]=="delete_dir"){
 			string dest;
-			dest=rootPath+inputVector[1];
+			if(inputVector[1][0]=='~'){
+				dest=rootPath+inputVector[1].substr(1);
+			}
+			else if(inputVector[1][0]=='/'){
+				dest=currentDir+inputVector[1];
+			}
+			else{
+				clrCMD();
+				moveCursor(statusLine,0);
+				cout<<"Invalid Path!";
+				continue;
+			}
 			delDir(dest);
 			rmdir(dest.c_str());
+			clrCMD();
+			moveCursor(statusLine,0);
+			cout<<"Deleted Succesfully!";
 		}
-		else if(inputVector[0]=="create_file"){
-			string fileName=inputVector[1];
+		else if(inputVector[0]=="create_file" || inputVector[0]=="create_dir"){
 			string loc;
-			if(inputVector[2][0]=='~'){
-				loc=rootPath+inputVector[2].substr(1);
+			int size=inputVector.size();
+			if(inputVector[size-1][0]=='~'){
+				loc=rootPath+inputVector[size-1].substr(1);
 			}
-			else{
-				loc=currentDir+'/'+inputVector[2];
+			else if(inputVector[size-1][0]=='/'){
+				loc=currentDir+inputVector[size-1];
 			}
-			open((loc+'/'+fileName).c_str(),O_WRONLY|O_CREAT,S_IRUSR|S_IWUSR);
-		}
-		else if(inputVector[0]=="create_dir"){
-			string fileName=inputVector[1];
-			string loc;
-			if(inputVector[2][0]=='~'){
-				loc=rootPath+inputVector[2].substr(1);
-			}
-			else{
+			else if(inputVector[size-1][0]=='.'){
 				loc=currentDir;
 			}
-			mkdir((loc+'/'+fileName).c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
+			else{
+				clrCMD();
+				moveCursor(statusLine,0);
+				cout<<"Invalid Path!";
+				continue;
+			}
+			for(int i=1; i<size-1; i++){
+				string fileName=inputVector[i];
+				if(inputVector[0]=="create_file"){
+					open((loc+'/'+fileName).c_str(),O_WRONLY|O_CREAT,S_IRUSR|S_IWUSR);
+				}
+				else{
+					mkdir((loc+'/'+fileName).c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
+				}
+			}
+			clrCMD();
+			moveCursor(statusLine,0);
+			cout<<"Created Succesfully!";
 		}
 		else if(inputVector[0]=="rename"){
 			string a = inputVector[1];
 			string b = inputVector[2];
 			rename(a.c_str(),b.c_str());
+			clrCMD();
+			moveCursor(statusLine,0);
+			cout<<"Renamed Succesfully!";
 		}
 		else if(inputVector[0]=="move"){
-			string src,dest;
+			string fileName,dest;
 			int size = inputVector.size();
-			moveCursor(statusLine,0);
-			for(int i=1; i<size-1; i++){
-				if(inputVector[size-1][0]=='~'){
-					dest=rootPath+inputVector[size-1].substr(1);
-				}
-				else{
-					dest=currentDir+'/'+inputVector[size-1];
-				}
-				src=inputVector[i];
-				copyFile(src,dest);
-				deleteFile(currentDir+'/'+src);
-				cout<<"Moved!";
+			if(inputVector[size-1][0]=='~'){
+				dest=rootPath+inputVector[size-1].substr(1);
 			}
+			else if(inputVector[size-1][0]=='/'){
+				dest=currentDir+inputVector[size-1];
+			}
+			else{
+				clrCMD();
+				moveCursor(statusLine,0);
+				cout<<"Invalid Path!";
+				continue;
+			}
+			for(int i=1; i<size-1; i++){
+				fileName=inputVector[i];
+				copyFile(fileName,dest);
+				deleteFile(currentDir+'/'+fileName);
+			}
+			clrCMD();
+			moveCursor(statusLine,0);
+			cout<<"Moved Succesfully!";
 		}
 		else if(inputVector[0]=="goto"){
 			if(inputVector[1][0]=='/'){
@@ -469,49 +488,83 @@ void toggleMode(){
 				}
 			}
 			moveCursor(cursor,0);
-				break;
+			break;
 		}
 		else if(inputVector[0]=="delete_file"){
-			string filePath=inputVector[1];
-			deleteFile(rootPath+filePath);
+			string filePath;
+			if(inputVector[1][0]=='~'){
+				filePath=rootPath+inputVector[1].substr(1);
+			}
+			else if(inputVector[1][0]=='/'){
+				filePath=currentDir+inputVector[1];
+			}
+			else{
+				clrCMD();
+				moveCursor(statusLine,0);
+				cout<<"Invalid Path!";
+				continue;
+			}
+			clrCMD();
+			moveCursor(statusLine,0);
+			if(!deleteFile(rootPath+'/'+filePath)){
+				cout<<"Deleted Succesfully!";
+			}
+			else{
+				cout<<"Deletion Failed!";
+			}
+
 		}
 		else if(inputVector[0]=="copy_dir"){
-			string src,dest;
+			string dirName,dest;
 			int size = inputVector.size();
-			for(int i=1; i<size-1; i++){
-				if(inputVector[size-1][0]=='~'){
-					dest=rootPath+inputVector[size-1].substr(1);
-				}
-				else{
-					dest=currentDir+inputVector[size-1];
-				}
-				src=inputVector[i];
-				mkdir((dest+'/'+src).c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
-				copyDir(currentDir+'/'+src,dest+'/'+src);
+			if(inputVector[size-1][0]=='~'){
+				dest=rootPath+inputVector[size-1].substr(1);
 			}
+			else if(inputVector[size-1][0]=='/'){
+				dest=currentDir+inputVector[size-1];
+			}
+			else{
+				clrCMD();
+				moveCursor(statusLine,0);
+				cout<<"Invalid Path!";
+				continue;
+			}
+			for(int i=1; i<size-1; i++){
+				dirName=inputVector[i];
+				mkdir((dest+'/'+dirName).c_str(),S_IRUSR|S_IWUSR|S_IXUSR);
+				copyDir(currentDir+'/'+dirName,dest+'/'+dirName);
+			}
+			clrCMD();
+			moveCursor(statusLine,0);
+			cout<<"Copied Succesfully!";
 		}
 		else if(inputVector[0]=="copy"){
-			string src,dest;
+			string fileName,dest;
 			int size = inputVector.size();
-			for(int i=1; i<size-1; i++){
-				if(inputVector[size-1][0]=='~'){
-					dest=rootPath+inputVector[size-1].substr(1);
-				}
-				else{
-					dest=currentDir+'/'+inputVector[size-1];
-				}
-				src=inputVector[i];
-				copyFile(src,dest);
-				moveCursor(statusLine,0);
-				cout<<"Copied!";
-				moveCursor(inputLine,0);
+			if(inputVector[size-1][0]=='~'){
+				dest=rootPath+inputVector[size-1].substr(1);
 			}
+			else if(inputVector[size-1][0]=='/'){
+				dest=currentDir+inputVector[size-1];
+			}
+			else{
+				clrCMD();
+				moveCursor(statusLine,0);
+				cout<<"Invalid Path!";
+				continue;
+			}
+			for(int i=1; i<size-1; i++){
+				fileName=inputVector[i];
+				copyFile(fileName,dest);
+			}
+			clrCMD();
+			moveCursor(statusLine,0);
+			cout<<"Copied Succesfully!";
 		}
 		else{
-			moveCursor(statusLine,0);
-			cout<<"Status: Invalid Command!\t\t";
-			moveCursor(inputLine,0);
 			clrCMD();
+			moveCursor(statusLine,0);
+			cout<<"Status: Invalid Command!";
 		}
 	}
 	initKeyboard();

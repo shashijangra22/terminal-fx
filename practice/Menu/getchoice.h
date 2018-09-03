@@ -1,1 +1,0 @@
-int getchoice(char*, char* [],FILE *, FILE *);
