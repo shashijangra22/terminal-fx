@@ -1,3 +1,9 @@
+// Name: Shashi Jangra
+// Email ID: shashi.jangra@students.iiit.ac.in
+// Roll Number: 2018202001
+// M.Tech CSIS
+
+// this file contains all the definitions of functions declared in functions.h
 #include<unistd.h>
 #include<iostream>
 #include<stdio.h>
@@ -16,13 +22,15 @@
 #include<algorithm>
 #include<math.h>
 using namespace std;
-#define clr() printf("\033[H\033[J")
+#define clr() printf("\033[H\033[J")	// clears the screen
+
+// global variables to be used throughout the program
 static struct termios initSettings,newSettings;
 static int peek_char = -1;
 char const* rootPath;
 size_t dirSize=1024;
 char currentDir[1024];
-#define MAX 10
+#define MAX 10		// max items to display in normal mode
 struct winsize w;
 std::vector<string> inputVector;
 std::vector<string> backStack;
@@ -34,10 +42,16 @@ int modLine;
 int outputLine;
 int statusLine;
 int inputLine;
+FILE* out;
+
+// move cursor to x and y coordinate
+
 void moveCursor(int x,int y) {
 	cout<<"\033["<<x<<";"<<y<<"H";
 	fflush(stdout);
 }
+
+// set the root path on program start
 void setRootPath(char const* path){
 	rootPath=path;
 	ioctl(STDOUT_FILENO,TIOCGWINSZ,&w);
@@ -47,13 +61,56 @@ void setRootPath(char const* path){
 	inputLine=statusLine+1;
 }
 
+// saves the snapshot in dumpfile
+
+void printDir(char const* dir, int depth){
+	DIR *dp;
+	struct dirent *entry;
+	struct stat statbuf;
+
+	if((dp = opendir(dir))==NULL){
+		fprintf(stderr, "Can't open the directory: %s\n",dir);
+		return;
+	}
+	chdir(dir);
+	while((entry = readdir(dp))!=NULL){
+		lstat(entry->d_name,&statbuf);
+		if(S_ISDIR(statbuf.st_mode)){
+			if(strcmp(".",entry->d_name)==0 || strcmp("..",entry->d_name)==0){
+				continue;
+			}
+			fprintf(out,"%*s%s/\n",depth,"",entry->d_name);
+			printDir(entry->d_name,depth+4);
+		}
+		else{
+			fprintf(out,"%*s%s\n",depth,"",entry->d_name);
+		}
+	}
+	chdir("..");
+	closedir(dp);
+}
+
+// snapshot
+
+void snapshot(string src,string fileName){
+	out = fopen((src+'/'+fileName).c_str(),"w");
+	printDir(src.c_str(),0);
+	fclose(out);
+	return;
+}
+
+// display search results
 void printResults(){
-	clr();
-	int i=1;
+	moveCursor(14,0);
+	cout<<"Seach Results are: \n\n";
 	for(int x=0; x<searchStack.size(); x++){
 		cout<<searchStack[x]<<"\n";
 	}
+	cout<<"Press any key to go back: ";
+	return;
 }
+
+// print the files vector
 
 void printFiles(){
 	clr();
@@ -73,6 +130,9 @@ void printFiles(){
 	cout<<"Mode: Normal Mode";
 	return;
 }
+
+// set the files vector
+
 void getSetCurrentDir(char const* dir){
 	DIR* dp;
 	struct dirent* entry;
@@ -94,6 +154,8 @@ void getSetCurrentDir(char const* dir){
 	moveCursor(cursor,0);
 	return;
 }
+
+
 void initKeyboard(){
 	tcgetattr(0,&initSettings);
 	newSettings=initSettings;
@@ -350,26 +412,28 @@ void searchFiles(string fileName,string dir){
 void toggleMode(){
 	closeKeyboard();
 	clrCMD();
-	string input;
+	string input;	// user input in command mode
 	while(1){
 		moveCursor(inputLine,0);
 		printf(":");
 		getline(cin>>ws,input);
-		fillInputVector(input);
-		if(inputVector[0]=="exit"){
+		fillInputVector(input);		// split input to seperate arguments
+		if(inputVector[0]=="exit"){	// exit command mode
 			getSetCurrentDir(currentDir);
 			moveCursor(cursor,0);
 			break;
 		}
-		// else if(inputVector[0]=="search"){
-		// 	string fileName=inputVector[1];
-		// 	searchStack.clear();
-		// 	searchFiles(fileName,currentDir);
-		// 	printResults();
-		// 	moveCursor(cursor,0);
-		// 	break;
-		// }
-		else if(inputVector[0]=="move_dir"){
+		else if(inputVector[0]=="search"){	// search the file
+			string fileName=inputVector[1];
+			searchStack.clear();
+			searchFiles(fileName,currentDir);
+			printResults();
+			getchar();
+			printFiles();
+			moveCursor(cursor,0);
+			break;
+		}
+		else if(inputVector[0]=="move_dir"){		// move directory recursively
 			string src,dest;
 			int size = inputVector.size();
 			if(inputVector[size-1][0]=='~'){
@@ -395,7 +459,7 @@ void toggleMode(){
 			moveCursor(statusLine,0);
 			cout<<"Moved Succesfully!";
 		}
-		else if(inputVector[0]=="delete_dir"){
+		else if(inputVector[0]=="delete_dir"){	// delete directory recursively
 			string dest;
 			if(inputVector[1][0]=='~'){
 				dest=rootPath+inputVector[1].substr(1);
@@ -415,7 +479,7 @@ void toggleMode(){
 			moveCursor(statusLine,0);
 			cout<<"Deleted Succesfully!";
 		}
-		else if(inputVector[0]=="create_file" || inputVector[0]=="create_dir"){
+		else if(inputVector[0]=="create_file" || inputVector[0]=="create_dir"){	//create file or directory
 			string loc;
 			int size=inputVector.size();
 			if(inputVector[size-1][0]=='~'){
@@ -446,7 +510,7 @@ void toggleMode(){
 			moveCursor(statusLine,0);
 			cout<<"Created Succesfully!";
 		}
-		else if(inputVector[0]=="rename"){
+		else if(inputVector[0]=="rename"){	// rename file
 			string a = inputVector[1];
 			string b = inputVector[2];
 			rename(a.c_str(),b.c_str());
@@ -454,7 +518,7 @@ void toggleMode(){
 			moveCursor(statusLine,0);
 			cout<<"Renamed Succesfully!";
 		}
-		else if(inputVector[0]=="move"){
+		else if(inputVector[0]=="move"){	// move a file 
 			string fileName,dest;
 			int size = inputVector.size();
 			if(inputVector[size-1][0]=='~'){
@@ -478,7 +542,7 @@ void toggleMode(){
 			moveCursor(statusLine,0);
 			cout<<"Moved Succesfully!";
 		}
-		else if(inputVector[0]=="goto"){
+		else if(inputVector[0]=="goto"){	// go to a specific directory
 			if(inputVector[1][0]=='/'){
 				goHome();
 			}
@@ -490,7 +554,7 @@ void toggleMode(){
 			moveCursor(cursor,0);
 			break;
 		}
-		else if(inputVector[0]=="delete_file"){
+		else if(inputVector[0]=="delete_file"){	// delete a file
 			string filePath;
 			if(inputVector[1][0]=='~'){
 				filePath=rootPath+inputVector[1].substr(1);
@@ -514,7 +578,26 @@ void toggleMode(){
 			}
 
 		}
-		else if(inputVector[0]=="copy_dir"){
+		else if(inputVector[0]=="snapshot"){	// dump snapshot to dumpfile
+			string dirName;
+			if(inputVector[1][0]=='~'){
+				dirName=rootPath+inputVector[1].substr(1);
+			}
+			else if(inputVector[1][0]=='/'){
+				dirName=currentDir+inputVector[1];
+			}
+			else{
+				clrCMD();
+				moveCursor(statusLine,0);
+				cout<<"Invalid Path!";
+				continue;
+			}
+			snapshot(dirName,inputVector[2]);
+			clrCMD();
+			moveCursor(statusLine,0);
+			cout<<"Dumpfile Dumped Succesfully!";
+		}
+		else if(inputVector[0]=="copy_dir"){	// copy directory recursively
 			string dirName,dest;
 			int size = inputVector.size();
 			if(inputVector[size-1][0]=='~'){
@@ -538,7 +621,7 @@ void toggleMode(){
 			moveCursor(statusLine,0);
 			cout<<"Copied Succesfully!";
 		}
-		else if(inputVector[0]=="copy"){
+		else if(inputVector[0]=="copy"){		// copy file
 			string fileName,dest;
 			int size = inputVector.size();
 			if(inputVector[size-1][0]=='~'){
@@ -564,9 +647,9 @@ void toggleMode(){
 		else{
 			clrCMD();
 			moveCursor(statusLine,0);
-			cout<<"Status: Invalid Command!";
+			cout<<"Status: Invalid Command!";		// show error on invalid command
 		}
 	}
-	initKeyboard();
+	initKeyboard();		// set terminal settings to change to normal mode
 	return;
 }

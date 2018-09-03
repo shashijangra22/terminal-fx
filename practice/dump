@@ -1,0 +1,28 @@
+a.txt
+termios/
+    kbhitfunc.h
+    password.cpp
+    sizeterm.c
+    kbhit.c
+    kbhitfunc.c
+    makefile
+printDir.c
+b/
+files/
+    copy_stdio.c
+    copy_block.c
+    printDir.c
+    printDirFunc.c
+    kled.c
+    copy.c
+    file.in
+    printDirFunc.h
+    a.c
+    makefile
+filecopy.c
+file.in
+a.c
+xyz.a
+makefile
+dump
+test.c
